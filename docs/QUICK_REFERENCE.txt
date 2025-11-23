@@ -1,0 +1,186 @@
+================================================================================
+XV6 USER AUTHENTICATION - QUICK REFERENCE CARD
+================================================================================
+
+DEFAULT USERS:
+--------------
+admin/admin  - Full access (read, write, execute, admin)
+user1/pass1  - Read-only (read, execute)
+user2/pass2  - Read+Write (read, write, execute)
+
+NEW COMMANDS:
+-------------
+login        - Login to system (also at boot)
+logout       - Logout current user
+whoami       - Display current user and UID
+chmod        - Change file permissions (admin only)
+reboot       - Reboot the system
+
+PERMISSION FLAGS:
+-----------------
+r = Read     (PERM_READ)
+w = Write    (PERM_WRITE)
+x = Execute  (PERM_EXEC)
+a = Admin    (PERM_ADMIN)
+
+Example: "rw--" = read+write, no execute, no admin
+
+CHMOD USAGE:
+------------
+chmod <file> <perms>
+
+Permission numbers:
+1 = read only
+2 = write only
+3 = read+write
+
+Examples:
+admin$ chmod file.txt 1    # Make read-only
+admin$ chmod file.txt 3    # Make read+write
+
+TAB COMPLETION:
+---------------
+Press TAB to auto-complete filenames
+- Single match: completes automatically
+- Multiple matches: shows all options
+- No match: does nothing
+
+Example:
+$ cat RE<TAB>     → cat README
+$ ls _<TAB>       → shows all programs
+
+SHELL PROMPTS:
+--------------
+admin$   - Logged in as admin
+user1$   - Logged in as user1
+user2$   - Logged in as user2
+guest$   - No user logged in
+
+LS OUTPUT FORMAT:
+-----------------
+perms filename uid:X type ino size
+
+Example:
+rw-- testfile.txt uid:2 2 15 42
+
+TESTING CHECKLIST:
+------------------
+□ Login as admin
+□ Create file: echo test > file
+□ Check permissions: ls
+□ Change permissions: chmod file 1
+□ Logout
+□ Login as user1
+□ Try to write (should fail)
+□ Try tab completion
+□ Reboot
+□ Login as user2
+□ Create own file
+□ Check ownership
+
+COMMON OPERATIONS:
+------------------
+# Switch users
+$ reboot
+(or)
+$ logout
+(then login again)
+
+# Check who you are
+$ whoami
+
+# Create file (inherits your UID)
+$ echo "content" > myfile.txt
+
+# View file permissions
+$ ls
+
+# Make file read-only (admin only)
+admin$ chmod myfile.txt 1
+
+# Read any file (all users can read)
+$ cat myfile.txt
+
+# Write to file (needs permission)
+$ echo "more" >> myfile.txt
+
+PERMISSION MATRIX:
+------------------
+Action          | admin | user1 | user2
+----------------|-------|-------|-------
+Read files      | YES   | YES   | YES
+Write own files | YES   | NO    | YES
+Write others    | YES   | NO    | NO*
+Use chmod       | YES   | NO    | NO
+Reboot          | YES   | YES   | YES
+Logout          | YES   | YES   | YES
+
+* Unless admin grants permission via chmod
+
+TROUBLESHOOTING:
+----------------
+Problem: Can't write to file
+Solution: Check permissions with ls, ask admin to chmod
+
+Problem: Login fails
+Solution: Check username/password spelling
+
+Problem: Tab doesn't work
+Solution: Make sure you're in shell, not login prompt
+
+Problem: Command not found
+Solution: Check spelling, use ls to see available programs
+
+KEYBOARD SHORTCUTS:
+-------------------
+TAB       - Auto-complete filename
+ENTER     - Execute command
+CTRL+P    - Process dump (debugging)
+CTRL+C    - (not implemented in XV6)
+
+FILE SYSTEM NOTES:
+------------------
+- All files created by a user have that user's UID
+- Default permissions: read+write (rw--)
+- Permissions persist across reboots
+- Only admin can change permissions
+- No group permissions (simplified model)
+
+SECURITY NOTES:
+---------------
+- Must login before accessing shell
+- Each process tracks user credentials
+- Child processes inherit parent's UID
+- Write operations check permissions
+- Passwords stored in plaintext (demo only!)
+
+BUILD COMMANDS:
+---------------
+make clean       - Clean build artifacts
+make             - Build XV6
+make qemu        - Run with graphics
+make qemu-nox    - Run without graphics (recommended)
+
+DEMO SCRIPT:
+------------
+1. Boot system → shows login screen
+2. Login as admin → admin$ prompt
+3. whoami → shows "admin (uid: 1)"
+4. echo test > file → creates file
+5. ls → shows "rw-- file uid:1"
+6. chmod file 1 → makes read-only
+7. ls → shows "r--- file uid:1"
+8. logout → returns to login
+9. Login as user1 → user1$ prompt
+10. cat file → can read
+11. echo hack >> file → FAILS (no write permission)
+12. reboot → restarts system
+
+IMPORTANT FILES:
+----------------
+IMPLEMENTATION_DETAILS.txt - Full technical documentation
+TESTING_GUIDE.txt          - Detailed testing instructions
+SUMMARY.txt                - Project overview
+QUICK_REFERENCE.txt        - This file
+
+================================================================================

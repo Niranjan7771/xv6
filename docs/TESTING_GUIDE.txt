@@ -1,0 +1,329 @@
+================================================================================
+XV6 USER AUTHENTICATION - QUICK TESTING GUIDE
+================================================================================
+
+STEP-BY-STEP TESTING INSTRUCTIONS:
+================================================================================
+
+STEP 1: BUILD AND RUN
+----------------------
+$ make clean
+$ make
+$ make qemu-nox
+
+Expected: System boots and shows login screen with user list
+
+STEP 2: TEST BASIC LOGIN
+-------------------------
+At login prompt:
+Username: admin
+Password: admin
+
+Expected: "Login successful! Welcome admin (UID: 1)"
+Expected: Shell starts with prompt "admin$ "
+
+STEP 3: TEST WHOAMI COMMAND
+----------------------------
+admin$ whoami
+
+Expected output: "admin (uid: 1)"
+
+STEP 4: TEST FILE CREATION AND PERMISSIONS
+-------------------------------------------
+admin$ echo "Hello from admin" > adminfile.txt
+admin$ ls
+
+Expected: Shows "rw--" permissions for adminfile.txt with uid:1
+
+STEP 5: TEST LS WITH PERMISSIONS
+---------------------------------
+admin$ ls
+
+Expected output format:
+rw-- README          uid:1 2 1 2286
+rw-- adminfile.txt   uid:1 2 X XX
+
+(rwxa format: r=read, w=write, x=execute, a=admin)
+
+STEP 6: TEST CHMOD (ADMIN ONLY)
+--------------------------------
+admin$ chmod adminfile.txt 1
+admin$ ls
+
+Expected: adminfile.txt now shows "r---" (read-only)
+
+admin$ echo "try to write" >> adminfile.txt
+
+Expected: Write should fail (permission denied)
+
+admin$ chmod adminfile.txt 3
+admin$ echo "now it works" >> adminfile.txt
+admin$ cat adminfile.txt
+
+Expected: File now writable, content shows both lines
+
+STEP 7: TEST LOGOUT
+--------------------
+admin$ logout
+
+Expected: Returns to login screen
+
+STEP 8: TEST READ-ONLY USER
+----------------------------
+Username: user1
+Password: pass1
+
+user1$ whoami
+
+Expected: "user1 (uid: 2)"
+
+user1$ cat adminfile.txt
+
+Expected: Can read the file (shows content)
+
+user1$ echo "user1 trying to write" >> adminfile.txt
+
+Expected: FAILS - user1 has no write permission
+
+user1$ echo "user1 own file" > user1file.txt
+user1$ ls
+
+Expected: user1file.txt created with uid:2, permissions "rw--"
+
+STEP 9: TEST READ-WRITE USER
+-----------------------------
+user1$ reboot
+
+(System reboots, returns to login)
+
+Username: user2
+Password: pass2
+
+user2$ whoami
+
+Expected: "user2 (uid: 3)"
+
+user2$ echo "user2 can write" > user2file.txt
+user2$ cat user2file.txt
+
+Expected: File created and readable
+
+user2$ ls
+
+Expected: user2file.txt shows uid:3, permissions "rw--"
+
+STEP 10: TEST TAB COMPLETION
+-----------------------------
+user2$ cat RE<press TAB>
+
+Expected: Completes to "cat README"
+
+user2$ ls _<press TAB>
+
+Expected: Shows all files starting with underscore:
+_cat  _echo  _grep  _init  _kill  _ln  _ls  _mkdir  _rm  _sh  ...
+
+user2$ cat _ca<press TAB>
+
+Expected: Completes to "cat _cat"
+
+STEP 11: TEST CROSS-USER FILE ACCESS
+-------------------------------------
+user2$ cat user1file.txt
+
+Expected: Can read (read permission exists)
+
+user2$ echo "user2 modifying user1 file" >> user1file.txt
+
+Expected: FAILS - user2 doesn't own the file
+
+STEP 12: TEST ADMIN CHMOD ON OTHER USER FILES
+----------------------------------------------
+user2$ reboot
+
+Username: admin
+Password: admin
+
+admin$ chmod user1file.txt 3
+admin$ ls
+
+Expected: user1file.txt now has "rw--" permissions
+
+admin$ reboot
+
+Username: user2
+Password: pass2
+
+user2$ echo "now user2 can write" >> user1file.txt
+user2$ cat user1file.txt
+
+Expected: SUCCESS - admin changed permissions
+
+STEP 13: TEST REBOOT COMMAND
+-----------------------------
+user2$ reboot
+
+Expected: System reboots immediately, returns to login screen
+
+STEP 14: TEST INVALID LOGIN
+----------------------------
+Username: hacker
+Password: wrong
+
+Expected: "Login failed! Try again."
+Expected: Returns to login prompt after delay
+
+STEP 15: TEST SHELL PROMPT CHANGES
+-----------------------------------
+Login as each user and observe prompt:
+- admin: "admin$ "
+- user1: "user1$ "
+- user2: "user2$ "
+
+================================================================================
+PERMISSION TESTING MATRIX:
+================================================================================
+
+File Owner: admin (uid:1)
+File Permissions: rw-- (read+write)
+
+| User  | UID | Can Read? | Can Write? | Reason                    |
+|-------|-----|-----------|------------|---------------------------|
+| admin | 1   | YES       | YES        | Owner of file             |
+| user1 | 2   | YES       | NO         | Not owner, no write perm  |
+| user2 | 3   | YES       | NO         | Not owner, no write perm  |
+
+After admin runs: chmod file 3 (sets PERM_READ | PERM_WRITE)
+
+| User  | UID | Can Read? | Can Write? | Reason                    |
+|-------|-----|-----------|------------|---------------------------|
+| admin | 1   | YES       | YES        | Owner of file             |
+| user1 | 2   | YES       | NO         | Has read, but no write    |
+| user2 | 3   | YES       | YES        | Has write permission      |
+
+================================================================================
+EXPECTED BEHAVIORS:
+================================================================================
+
+✓ Login with correct credentials succeeds
+✓ Login with wrong credentials fails
+✓ whoami shows current user
+✓ Files created by user show that user's UID
+✓ ls shows permissions in rwxa format
+✓ user1 (read-only) cannot write to any files
+✓ user2 can write to files with write permission
+✓ admin can use chmod to change any file's permissions
+✓ non-admin users cannot use chmod
+✓ Tab completion works for filenames
+✓ Tab shows multiple matches when ambiguous
+✓ Reboot command restarts system
+✓ Logout returns to login screen
+✓ Shell prompt shows current username
+
+================================================================================
+TROUBLESHOOTING:
+================================================================================
+
+PROBLEM: "Login failed" even with correct password
+SOLUTION: Check that init_users() is being called in sysproc.c
+
+PROBLEM: Tab completion doesn't work
+SOLUTION: Make sure getchar() is implemented in ulib.c
+
+PROBLEM: Permission denied on all writes
+SOLUTION: Check that create() sets default permissions in sysfile.c
+
+PROBLEM: ls doesn't show permissions
+SOLUTION: Verify user_auth.h is included in ls.c
+
+PROBLEM: Reboot doesn't work
+SOLUTION: Check that outb() is available from x86.h
+
+PROBLEM: Compilation errors
+SOLUTION: Run "make clean" then "make" again
+
+PROBLEM: Programs not found (_login, _chmod, etc.)
+SOLUTION: Check that new programs are added to UPROGS in Makefile
+
+================================================================================
+ADVANCED TESTING:
+================================================================================
+
+1. TEST PERMISSION INHERITANCE:
+   admin$ echo "test" > file1
+   admin$ cat file1 > file2
+   admin$ ls
+   
+   Both files should have uid:1 (admin)
+
+2. TEST MULTIPLE SESSIONS:
+   - Open two QEMU windows
+   - Login as different users in each
+   - Create files in one, try to access from other
+
+3. TEST EDGE CASES:
+   - Very long filenames in tab completion
+   - Tab completion with no matches
+   - chmod with invalid permission numbers
+   - Login with empty username/password
+
+4. STRESS TEST:
+   - Create many files as different users
+   - Change permissions multiple times
+   - Reboot and verify persistence
+
+================================================================================
+DEMO SCRIPT FOR PRESENTATION:
+================================================================================
+
+# Show login screen
+"Here's the login screen with our three users"
+
+# Login as admin
+Username: admin
+Password: admin
+admin$ whoami
+"I'm logged in as admin with full privileges"
+
+# Create and modify files
+admin$ echo "Secret admin data" > secret.txt
+admin$ ls
+"Notice the permissions: rw-- and owner uid:1"
+
+# Make file read-only
+admin$ chmod secret.txt 1
+admin$ ls
+"Now it's read-only: r---"
+
+# Logout and login as user1
+admin$ logout
+Username: user1
+Password: pass1
+user1$ whoami
+"Now I'm user1, a read-only user"
+
+# Try to write
+user1$ cat secret.txt
+"I can read the file"
+user1$ echo "hack" >> secret.txt
+"But I cannot write to it - permission denied!"
+
+# Show tab completion
+user1$ cat sec<TAB>
+"Tab completion helps me type faster"
+
+# Reboot to switch users
+user1$ reboot
+"Rebooting to switch users..."
+
+Username: user2
+Password: pass2
+user2$ echo "User2 file" > myfile.txt
+"User2 has write permissions and can create files"
+
+user2$ ls
+"See, myfile.txt is owned by uid:3 (user2)"
+
+================================================================================
+END OF TESTING GUIDE
+================================================================================

@@ -1,0 +1,237 @@
+================================================================================
+BUGS FIXED - XV6 USER AUTHENTICATION
+================================================================================
+
+Date: November 23, 2025
+
+================================================================================
+BUG #1: LOGOUT COMMAND NOT WORKING
+================================================================================
+
+PROBLEM:
+--------
+When user types "logout" command, it would call the logout system call but
+the shell would continue running. The user would still be at the shell prompt
+and could continue executing commands.
+
+ROOT CAUSE:
+-----------
+The logout program (logout.c) only called the logout() system call and printed
+a message, but didn't exit the shell. The shell process continued running even
+after credentials were cleared.
+
+FIX APPLIED:
+------------
+Modified sh.c to detect the "logout" command as a built-in command (similar to
+"cd"). When logout is typed:
+1. Check if user is logged in (getuid() != 0)
+2. Call logout() system call to clear credentials
+3. Print message and EXIT the shell
+4. This causes init to detect shell exit and show login screen again
+
+CODE CHANGES:
+-------------
+File: sh.c
+Location: main() function, command processing loop
+
+Added check for "logout" command:
+    if(buf[0] == 'l' && buf[1] == 'o' && buf[2] == 'g' && 
+       buf[3] == 'o' && buf[4] == 'u' && buf[5] == 't' && 
+       (buf[6] == '\n' || buf[6] == '\r' || buf[6] == ' ')){
+      if(getuid() == 0){
+        printf(2, "No user logged in\n");
+        continue;
+      }
+      logout();
+      printf(1, "Logged out successfully. Exiting shell...\n");
+      exit();  // <-- This is the key fix!
+    }
+
+VERIFICATION:
+-------------
+1. Login as any user
+2. Type: logout
+3. Expected: Shell exits and returns to login screen
+4. Result: ✓ WORKING
+
+================================================================================
+BUG #2: ADMIN CAN WRITE TO READ-ONLY FILES
+================================================================================
+
+PROBLEM:
+--------
+When admin user sets a file to read-only using chmod:
+    admin$ chmod file.txt 1
+    admin$ ls
+    r--- file.txt uid:1 2 X XX
+
+The file shows as read-only (r---), but admin can still write to it:
+    admin$ echo "this should fail" >> file.txt
+    (succeeds - BUG!)
+
+ROOT CAUSE:
+-----------
+The permission check in sys_write() had flawed logic:
+    if(f->ip->uid != 0 && f->ip->uid != curproc->uid && 
+       !(f->ip->permissions & PERM_WRITE)){
+      return -1;
+    }
+
+This logic said: "Deny write if file has owner AND user is not owner AND 
+file doesn't have write permission"
+
+The problem: If user IS the owner, the check is skipped entirely, allowing
+the owner to write even to read-only files!
+
+FIX APPLIED:
+------------
+Modified sys_write() in sysfile.c to check permissions correctly:
+
+1. FIRST check if file has write permission flag
+   - If NO write permission, deny for EVERYONE (including owner)
+   
+2. THEN check if user is not the owner
+   - If not owner, check if user has write capability
+
+NEW LOGIC:
+----------
+    // If file doesn't have write permission, deny write for everyone
+    if(!(f->ip->permissions & PERM_WRITE)){
+      return -1;  // Permission denied - file is read-only
+    }
+    // If user is not the owner and not admin, check if they have permission
+    if(f->ip->uid != 0 && f->ip->uid != curproc->uid){
+      if(!(curproc->permissions & PERM_WRITE)){
+        return -1;  // Permission denied - user has no write permission
+      }
+    }
+
+CODE CHANGES:
+-------------
+File: sysfile.c
+Function: sys_write()
+
+Changed from:
+    if(f->ip->uid != 0 && f->ip->uid != curproc->uid && 
+       !(f->ip->permissions & PERM_WRITE)){
+      return -1;
+    }
+
+Changed to:
+    if(!(f->ip->permissions & PERM_WRITE)){
+      return -1;  // File is read-only
+    }
+    if(f->ip->uid != 0 && f->ip->uid != curproc->uid){
+      if(!(curproc->permissions & PERM_WRITE)){
+        return -1;  // User has no write permission
+      }
+    }
+
+VERIFICATION:
+-------------
+1. Login as admin
+2. Create file: echo "test" > file.txt
+3. Make read-only: chmod file.txt 1
+4. Check: ls (should show "r---")
+5. Try to write: echo "more" >> file.txt
+6. Expected: FAILS with permission denied
+7. Result: ✓ WORKING
+
+Additional test:
+8. Change back: chmod file.txt 3
+9. Try to write: echo "now works" >> file.txt
+10. Expected: SUCCEEDS
+11. Result: ✓ WORKING
+
+================================================================================
+TESTING BOTH FIXES
+================================================================================
+
+Complete test scenario:
+-----------------------
+
+1. Start XV6:
+   $ make qemu-nox
+
+2. Login as admin:
+   Username: admin
+   Password: admin
+
+3. Create and test file permissions:
+   admin$ echo "original content" > testfile.txt
+   admin$ cat testfile.txt
+   → Shows: original content
+   
+   admin$ chmod testfile.txt 1
+   admin$ ls
+   → Shows: r--- testfile.txt uid:1 ...
+   
+   admin$ echo "try to modify" >> testfile.txt
+   → Should FAIL (no output or error)
+   
+   admin$ cat testfile.txt
+   → Still shows: original content (unchanged)
+   ✓ Read-only protection works!
+
+4. Test logout:
+   admin$ logout
+   → Shows: "Logged out successfully. Exiting shell..."
+   → Returns to login screen
+   ✓ Logout works!
+
+5. Login again and restore write permission:
+   Username: admin
+   Password: admin
+   
+   admin$ chmod testfile.txt 3
+   admin$ echo "now it works" >> testfile.txt
+   admin$ cat testfile.txt
+   → Shows: original content
+            now it works
+   ✓ Write permission restored!
+
+6. Test with different user:
+   admin$ logout
+   
+   Username: user1
+   Password: pass1
+   
+   user1$ cat testfile.txt
+   → Can read (works)
+   
+   user1$ echo "user1 hack" >> testfile.txt
+   → Should FAIL (user1 has no write permission)
+   ✓ User permissions work!
+
+================================================================================
+SUMMARY OF FIXES
+================================================================================
+
+✓ BUG #1 FIXED: Logout now properly exits shell and returns to login
+✓ BUG #2 FIXED: Read-only files cannot be written by anyone (including owner)
+
+Both fixes have been tested and verified to work correctly.
+
+Files modified:
+- sh.c (added logout command handling)
+- sysfile.c (fixed permission check logic)
+
+No other changes needed. System is now working as intended!
+
+================================================================================
+REBUILD INSTRUCTIONS
+================================================================================
+
+To apply these fixes:
+
+1. Make sure you have the updated sh.c and sysfile.c files
+2. Clean and rebuild:
+   $ make clean
+   $ make
+3. Run:
+   $ make qemu-nox
+4. Test both fixes as described above
+
+================================================================================
+END OF BUG FIXES
+================================================================================

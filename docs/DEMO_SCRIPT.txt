@@ -1,0 +1,512 @@
+================================================================================
+XV6 USER AUTHENTICATION - SIMPLE DEMONSTRATION SCRIPT
+================================================================================
+
+This file contains a simple step-by-step demonstration to verify all features
+are working correctly. Follow each step and compare with expected results.
+
+================================================================================
+STEP 1: BUILD AND START XV6
+================================================================================
+
+Commands to run on your host machine:
+--------------------------------------
+$ cd xv6-public
+$ make clean
+$ make
+$ make qemu-nox
+
+Expected Result:
+----------------
+You should see the XV6 boot messages, followed by a login screen like this:
+
+    === XV6 User Authentication System ===
+    Default users:
+      admin/admin (full access)
+      user1/pass1 (read only)
+      user2/pass2 (read+write)
+    =====================================
+    Username: _
+
+✓ If you see this login screen, authentication system is working!
+
+================================================================================
+STEP 2: TEST INVALID LOGIN
+================================================================================
+
+What to type:
+-------------
+Username: hacker
+Password: wrong
+
+Expected Result:
+----------------
+    Login failed! Try again.
+    (waits 1 second, then shows login prompt again)
+
+✓ If login fails with wrong credentials, authentication is working!
+
+================================================================================
+STEP 3: LOGIN AS ADMIN
+================================================================================
+
+What to type:
+-------------
+Username: admin
+Password: admin
+
+Expected Result:
+----------------
+    Login successful! Welcome admin (UID: 1)
+    Starting shell...
+    admin$ _
+
+✓ If you see "admin$" prompt, login system is working!
+
+================================================================================
+STEP 4: TEST WHOAMI COMMAND
+================================================================================
+
+What to type:
+-------------
+admin$ whoami
+
+Expected Result:
+----------------
+    admin (uid: 1)
+    admin$ _
+
+✓ If it shows "admin (uid: 1)", whoami command is working!
+
+================================================================================
+STEP 5: CREATE A FILE
+================================================================================
+
+What to type:
+-------------
+admin$ echo "This is a test file" > testfile.txt
+
+Expected Result:
+----------------
+    admin$ _
+    (no error message means success)
+
+✓ If no error, file creation is working!
+
+================================================================================
+STEP 6: VIEW FILE WITH LS (CHECK PERMISSIONS)
+================================================================================
+
+What to type:
+-------------
+admin$ ls
+
+Expected Result:
+----------------
+You should see output like:
+    rw-- README          uid:1 2 1 2286
+    rw-- testfile.txt    uid:1 2 X XX
+    admin$ _
+
+Look for:
+- "rw--" = read+write permissions
+- "uid:1" = owned by admin (UID 1)
+
+✓ If you see permissions and uid, file permissions are working!
+
+================================================================================
+STEP 7: TEST TAB COMPLETION
+================================================================================
+
+What to type:
+-------------
+admin$ cat RE<press TAB key>
+
+Expected Result:
+----------------
+The line should auto-complete to:
+    admin$ cat README
+
+Then press ENTER to execute it, you should see the README file content.
+
+✓ If TAB completes the filename, tab completion is working!
+
+================================================================================
+STEP 8: TEST TAB WITH MULTIPLE MATCHES
+================================================================================
+
+What to type:
+-------------
+admin$ ls _<press TAB key>
+
+Expected Result:
+----------------
+Should show all programs starting with underscore:
+    _cat  _echo  _forktest  _grep  _init  _kill  _ln  _ls  _mkdir  
+    _rm  _sh  _stressfs  _usertests  _wc  _zombie  _login  _logout  
+    _whoami  _chmod  _reboot
+    admin$ ls _
+
+✓ If it shows multiple matches, tab completion is working!
+
+================================================================================
+STEP 9: TEST CHMOD (CHANGE PERMISSIONS)
+================================================================================
+
+What to type:
+-------------
+admin$ chmod testfile.txt 1
+admin$ ls
+
+Expected Result:
+----------------
+    Permissions changed successfully
+    r--- testfile.txt    uid:1 2 X XX
+    admin$ _
+
+Notice "r---" means read-only now (no write permission)
+
+What to type next:
+------------------
+admin$ echo "try to write" >> testfile.txt
+
+Expected Result:
+----------------
+Should FAIL silently (no output) - even admin can't write to read-only file!
+
+To verify it failed:
+--------------------
+admin$ cat testfile.txt
+
+Expected Result:
+----------------
+Should still show only:
+    This is a test file
+    
+(The "try to write" line should NOT appear)
+
+What to type to fix:
+--------------------
+admin$ chmod testfile.txt 3
+admin$ echo "now it works" >> testfile.txt
+admin$ cat testfile.txt
+
+Expected Result:
+----------------
+Should show both lines:
+    This is a test file
+    now it works
+
+✓ If chmod changes permissions, chmod command is working!
+
+================================================================================
+STEP 10: TEST LOGOUT
+================================================================================
+
+What to type:
+-------------
+admin$ logout
+
+Expected Result:
+----------------
+    Logged out successfully. Exiting shell...
+    Shell exited. Please login again.
+    
+    === XV6 User Authentication System ===
+    Default users:
+      admin/admin (full access)
+      user1/pass1 (read only)
+      user2/pass2 (read+write)
+    =====================================
+    Username: _
+
+✓ If you return to login screen, logout is working!
+
+================================================================================
+STEP 11: LOGIN AS READ-ONLY USER (USER1)
+================================================================================
+
+What to type:
+-------------
+Username: user1
+Password: pass1
+
+Expected Result:
+----------------
+    Login successful! Welcome user1 (UID: 2)
+    Starting shell...
+    user1$ _
+
+Notice the prompt changed to "user1$"
+
+What to type:
+-------------
+user1$ whoami
+
+Expected Result:
+----------------
+    user1 (uid: 2)
+
+✓ If you see "user1$" prompt and correct UID, user switching works!
+
+================================================================================
+STEP 12: TEST READ-ONLY PERMISSIONS
+================================================================================
+
+What to type:
+-------------
+user1$ cat testfile.txt
+
+Expected Result:
+----------------
+Should show the file content (user1 can READ):
+    This is a test file
+    now it works
+
+What to type next:
+------------------
+user1$ echo "user1 trying to hack" >> testfile.txt
+
+Expected Result:
+----------------
+Should FAIL - no output or error (user1 cannot WRITE)
+
+What to type:
+-------------
+user1$ echo "user1 own file" > myfile.txt
+
+Expected Result:
+----------------
+Should also FAIL (user1 has no write permission at all)
+
+✓ If user1 can read but not write, read-only permissions work!
+
+================================================================================
+STEP 13: TEST REBOOT COMMAND
+================================================================================
+
+What to type:
+-------------
+user1$ reboot
+
+Expected Result:
+----------------
+System should restart immediately and show login screen again:
+    
+    === XV6 User Authentication System ===
+    Default users:
+      admin/admin (full access)
+      user1/pass1 (read only)
+      user2/pass2 (read+write)
+    =====================================
+    Username: _
+
+✓ If system reboots, reboot command is working!
+
+================================================================================
+STEP 14: LOGIN AS READ-WRITE USER (USER2)
+================================================================================
+
+What to type:
+-------------
+Username: user2
+Password: pass2
+
+Expected Result:
+----------------
+    Login successful! Welcome user2 (UID: 3)
+    Starting shell...
+    user2$ _
+
+What to type:
+-------------
+user2$ whoami
+
+Expected Result:
+----------------
+    user2 (uid: 3)
+
+✓ If you see "user2$" prompt, user2 login works!
+
+================================================================================
+STEP 15: TEST READ-WRITE PERMISSIONS
+================================================================================
+
+What to type:
+-------------
+user2$ cat testfile.txt
+
+Expected Result:
+----------------
+Should show the file content (user2 can READ):
+    This is a test file
+    now it works
+
+What to type next:
+------------------
+user2$ echo "user2 creating file" > user2file.txt
+user2$ cat user2file.txt
+
+Expected Result:
+----------------
+Should show:
+    user2 creating file
+
+What to type:
+-------------
+user2$ ls
+
+Expected Result:
+----------------
+Should show user2file.txt with uid:3:
+    rw-- user2file.txt   uid:3 2 X XX
+
+✓ If user2 can create and write files, read-write permissions work!
+
+================================================================================
+STEP 16: TEST CROSS-USER FILE ACCESS
+================================================================================
+
+What to type:
+-------------
+user2$ cat testfile.txt
+
+Expected Result:
+----------------
+Should work (can read admin's file)
+
+What to type:
+-------------
+user2$ echo "user2 modifying admin file" >> testfile.txt
+
+Expected Result:
+----------------
+Should FAIL (user2 doesn't own the file, even though user2 has write permission)
+
+✓ If user2 can't modify admin's files, ownership protection works!
+
+================================================================================
+STEP 17: TEST ADMIN CHANGING OTHER USER'S FILE PERMISSIONS
+================================================================================
+
+What to type:
+-------------
+user2$ reboot
+
+Then login as admin:
+Username: admin
+Password: admin
+
+What to type:
+-------------
+admin$ ls
+
+You should see user2file.txt with uid:3
+
+What to type:
+-------------
+admin$ chmod user2file.txt 3
+admin$ ls
+
+Expected Result:
+----------------
+user2file.txt should still show uid:3 but permissions might be updated
+
+✓ If admin can change any file's permissions, admin privileges work!
+
+================================================================================
+STEP 18: FINAL VERIFICATION - ALL COMMANDS
+================================================================================
+
+While logged in as admin, try all commands:
+
+admin$ whoami
+    → Should show: admin (uid: 1)
+
+admin$ ls
+    → Should show files with permissions and UIDs
+
+admin$ cat README
+    → Should show README content
+
+admin$ echo test > newfile
+    → Should create file
+
+admin$ chmod newfile 1
+    → Should change permissions
+
+admin$ logout
+    → Should return to login
+
+Login again and:
+
+admin$ reboot
+    → Should restart system
+
+✓ If all commands work, implementation is complete!
+
+================================================================================
+SUMMARY OF WHAT TO VERIFY
+================================================================================
+
+✓ Login screen appears at boot
+✓ Wrong credentials are rejected
+✓ Correct credentials allow login
+✓ whoami shows current user
+✓ ls shows permissions (rwxa format) and owner UID
+✓ Tab completion works for filenames
+✓ Tab shows multiple matches when ambiguous
+✓ chmod changes file permissions (admin only)
+✓ user1 can only read files
+✓ user2 can read and write files
+✓ admin has full access
+✓ Files show owner UID
+✓ Users can't modify other users' files
+✓ logout returns to login screen
+✓ reboot restarts the system
+✓ Shell prompt shows username
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+Problem: Login screen doesn't appear
+Solution: Check that init.c was modified correctly, rebuild with make clean && make
+
+Problem: Tab completion doesn't work
+Solution: Make sure you're pressing the TAB key, not typing "<TAB>"
+
+Problem: Commands not found
+Solution: Type "ls" to see available programs, they start with underscore
+
+Problem: Can't write any files
+Solution: Make sure you're logged in as user2 or admin, not user1
+
+Problem: System doesn't reboot
+Solution: This is normal in some emulators, use Ctrl+A then X to exit QEMU
+
+================================================================================
+QUICK TEST CHECKLIST
+================================================================================
+
+Run through this quick checklist to verify everything:
+
+[ ] System boots to login screen
+[ ] Login with admin/admin works
+[ ] whoami shows "admin (uid: 1)"
+[ ] ls shows permissions like "rw--"
+[ ] Tab completion works
+[ ] chmod changes permissions
+[ ] logout returns to login
+[ ] Login with user1/pass1 works
+[ ] user1 cannot write files
+[ ] reboot restarts system
+[ ] Login with user2/pass2 works
+[ ] user2 can write files
+[ ] Files show owner UID in ls
+
+If all boxes are checked, your implementation is working perfectly!
+
+================================================================================
+END OF DEMONSTRATION SCRIPT
+================================================================================

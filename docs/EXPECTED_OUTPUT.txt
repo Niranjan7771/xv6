@@ -1,0 +1,569 @@
+================================================================================
+EXPECTED OUTPUT - COMPLETE TEST SESSION
+================================================================================
+
+This file shows EXACTLY what you should see when testing the system.
+Follow along and compare your output with this.
+
+================================================================================
+STARTING XV6
+================================================================================
+
+$ make qemu-nox
+
+Expected Output:
+----------------
+qemu-system-i386 -nographic -drive file=fs.img...
+SeaBIOS (version rel-1.17.0-0-gb52ca86e094d-prebuilt.qemu.org)
+...
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+sb: size 1000 nblocks 916 ninodes 200 nlog 30 logstart 2 inodestart 32 bmap start 83
+
+=== XV6 User Authentication System ===
+Default users:
+  admin/admin (full access)
+  user1/pass1 (read only)
+  user2/pass2 (read+write)
+=====================================
+Username: _
+
+✓ If you see this, system booted correctly!
+
+================================================================================
+TEST 1: INVALID LOGIN
+================================================================================
+
+What to type:
+-------------
+Username: hacker
+Password: wrong
+
+Expected Output:
+----------------
+Login failed! Try again.
+
+=== XV6 User Authentication System ===
+Default users:
+  admin/admin (full access)
+  user1/pass1 (read only)
+  user2/pass2 (read+write)
+=====================================
+Username: _
+
+✓ Invalid credentials rejected!
+
+================================================================================
+TEST 2: VALID LOGIN AS ADMIN
+================================================================================
+
+What to type:
+-------------
+Username: admin
+Password: admin
+
+Expected Output:
+----------------
+Login successful! Welcome admin (UID: 1)
+Starting shell...
+init: starting sh
+admin$ _
+
+✓ Login successful, prompt shows "admin$"
+
+================================================================================
+TEST 3: WHOAMI COMMAND
+================================================================================
+
+What to type:
+-------------
+admin$ whoami
+
+Expected Output:
+----------------
+admin (uid: 1)
+admin$ _
+
+✓ Shows correct user and UID!
+
+================================================================================
+TEST 4: CREATE FILE
+================================================================================
+
+What to type:
+-------------
+admin$ echo "This is my test file" > testfile.txt
+
+Expected Output:
+----------------
+admin$ _
+
+(No error = success)
+
+✓ File created!
+
+================================================================================
+TEST 5: LIST FILES WITH PERMISSIONS
+================================================================================
+
+What to type:
+-------------
+admin$ ls
+
+Expected Output:
+----------------
+rw-- .              uid:0 1 1 1024
+rw-- ..             uid:0 1 1 1024
+rw-- README         uid:0 2 2 2286
+rw-- testfile.txt   uid:1 2 24 21
+rw-- cat            uid:0 2 3 15852
+...
+admin$ _
+
+Look for:
+- "rw--" = read+write permissions
+- "uid:1" = owned by admin
+- testfile.txt in the list
+
+✓ Permissions displayed correctly!
+
+================================================================================
+TEST 6: READ FILE
+================================================================================
+
+What to type:
+-------------
+admin$ cat testfile.txt
+
+Expected Output:
+----------------
+This is my test file
+admin$ _
+
+✓ File content displayed!
+
+================================================================================
+TEST 7: CHANGE TO READ-ONLY
+================================================================================
+
+What to type:
+-------------
+admin$ chmod testfile.txt 1
+
+Expected Output:
+----------------
+Permissions changed successfully
+admin$ _
+
+✓ Chmod executed!
+
+================================================================================
+TEST 8: VERIFY READ-ONLY PERMISSION
+================================================================================
+
+What to type:
+-------------
+admin$ ls
+
+Expected Output:
+----------------
+...
+r--- testfile.txt   uid:1 2 24 21
+...
+admin$ _
+
+Look for:
+- "r---" = read-only (no write permission)
+
+✓ Permission changed to read-only!
+
+================================================================================
+TEST 9: TRY TO WRITE TO READ-ONLY FILE (SHOULD FAIL)
+================================================================================
+
+What to type:
+-------------
+admin$ echo "This should fail" >> testfile.txt
+
+Expected Output:
+----------------
+Permission denied: cannot open read-only file for writing
+admin$ _
+
+✓ Write blocked with error message!
+
+================================================================================
+TEST 10: VERIFY FILE UNCHANGED
+================================================================================
+
+What to type:
+-------------
+admin$ cat testfile.txt
+
+Expected Output:
+----------------
+This is my test file
+admin$ _
+
+(Should NOT show "This should fail")
+
+✓ File unchanged - write was blocked!
+
+================================================================================
+TEST 11: RESTORE WRITE PERMISSION
+================================================================================
+
+What to type:
+-------------
+admin$ chmod testfile.txt 3
+
+Expected Output:
+----------------
+Permissions changed successfully
+admin$ _
+
+What to type:
+-------------
+admin$ echo "Now it works" >> testfile.txt
+admin$ cat testfile.txt
+
+Expected Output:
+----------------
+This is my test file
+Now it works
+admin$ _
+
+✓ Write permission restored and working!
+
+================================================================================
+TEST 12: TAB COMPLETION
+================================================================================
+
+What to type:
+-------------
+admin$ cat RE<press TAB key>
+
+Expected Output:
+----------------
+admin$ cat README_
+
+(Should auto-complete to README)
+
+Then press ENTER:
+
+Expected Output:
+----------------
+(Shows README file content)
+admin$ _
+
+✓ Tab completion working!
+
+================================================================================
+TEST 13: TAB WITH MULTIPLE MATCHES
+================================================================================
+
+What to type:
+-------------
+admin$ ls _<press TAB key>
+
+Expected Output:
+----------------
+_cat  _echo  _forktest  _grep  _init  _kill  _ln  _ls  _mkdir  
+_rm  _sh  _stressfs  _usertests  _wc  _zombie  _login  _logout  
+_whoami  _chmod  _reboot
+admin$ ls _
+
+✓ Shows all matching files!
+
+================================================================================
+TEST 14: LOGOUT
+================================================================================
+
+What to type:
+-------------
+admin$ logout
+
+Expected Output:
+----------------
+Logged out successfully. Exiting shell...
+Shell exited. Please login again.
+
+=== XV6 User Authentication System ===
+Default users:
+  admin/admin (full access)
+  user1/pass1 (read only)
+  user2/pass2 (read+write)
+=====================================
+Username: _
+
+✓ Logout successful, returned to login screen!
+
+================================================================================
+TEST 15: LOGIN AS USER1 (READ-ONLY)
+================================================================================
+
+What to type:
+-------------
+Username: user1
+Password: pass1
+
+Expected Output:
+----------------
+Login successful! Welcome user1 (UID: 2)
+Starting shell...
+init: starting sh
+user1$ _
+
+✓ User1 logged in, prompt shows "user1$"
+
+================================================================================
+TEST 16: USER1 WHOAMI
+================================================================================
+
+What to type:
+-------------
+user1$ whoami
+
+Expected Output:
+----------------
+user1 (uid: 2)
+user1$ _
+
+✓ Correct user displayed!
+
+================================================================================
+TEST 17: USER1 CAN READ FILES
+================================================================================
+
+What to type:
+-------------
+user1$ cat testfile.txt
+
+Expected Output:
+----------------
+This is my test file
+Now it works
+user1$ _
+
+✓ User1 can read admin's file!
+
+================================================================================
+TEST 18: USER1 CANNOT WRITE (SHOULD FAIL)
+================================================================================
+
+What to type:
+-------------
+user1$ echo "user1 trying to hack" >> testfile.txt
+
+Expected Output:
+----------------
+Permission denied: user has no write permission
+user1$ _
+
+✓ Write blocked with error message!
+
+================================================================================
+TEST 19: USER1 CANNOT CREATE FILES (SHOULD FAIL)
+================================================================================
+
+What to type:
+-------------
+user1$ echo "test" > user1file.txt
+
+Expected Output:
+----------------
+Permission denied: user has no write permission
+user1$ _
+
+✓ User1 cannot create files!
+
+================================================================================
+TEST 20: REBOOT
+================================================================================
+
+What to type:
+-------------
+user1$ reboot
+
+Expected Output:
+----------------
+(System restarts immediately)
+
+SeaBIOS (version rel-1.17.0-0-gb52ca86e094d-prebuilt.qemu.org)
+...
+Booting from Hard Disk..xv6...
+cpu0: starting 0
+...
+
+=== XV6 User Authentication System ===
+Default users:
+  admin/admin (full access)
+  user1/pass1 (read only)
+  user2/pass2 (read+write)
+=====================================
+Username: _
+
+✓ System rebooted!
+
+================================================================================
+TEST 21: LOGIN AS USER2 (READ-WRITE)
+================================================================================
+
+What to type:
+-------------
+Username: user2
+Password: pass2
+
+Expected Output:
+----------------
+Login successful! Welcome user2 (UID: 3)
+Starting shell...
+init: starting sh
+user2$ _
+
+✓ User2 logged in, prompt shows "user2$"
+
+================================================================================
+TEST 22: USER2 WHOAMI
+================================================================================
+
+What to type:
+-------------
+user2$ whoami
+
+Expected Output:
+----------------
+user2 (uid: 3)
+user2$ _
+
+✓ Correct user displayed!
+
+================================================================================
+TEST 23: USER2 CAN CREATE FILES
+================================================================================
+
+What to type:
+-------------
+user2$ echo "User2 file content" > user2file.txt
+
+Expected Output:
+----------------
+user2$ _
+
+(No error = success)
+
+✓ User2 can create files!
+
+================================================================================
+TEST 24: USER2 CAN WRITE TO OWN FILES
+================================================================================
+
+What to type:
+-------------
+user2$ echo "More content" >> user2file.txt
+user2$ cat user2file.txt
+
+Expected Output:
+----------------
+User2 file content
+More content
+user2$ _
+
+✓ User2 can write to own files!
+
+================================================================================
+TEST 25: USER2 FILE OWNERSHIP
+================================================================================
+
+What to type:
+-------------
+user2$ ls
+
+Expected Output:
+----------------
+...
+rw-- user2file.txt  uid:3 2 X XX
+...
+user2$ _
+
+Look for:
+- "uid:3" = owned by user2
+
+✓ File owned by user2!
+
+================================================================================
+TEST 26: USER2 CANNOT WRITE TO ADMIN'S FILE
+================================================================================
+
+What to type:
+-------------
+user2$ echo "user2 hacking admin file" >> testfile.txt
+
+Expected Output:
+----------------
+Permission denied: user has no write permission
+user2$ _
+
+✓ User2 cannot modify admin's files!
+
+================================================================================
+TEST 27: USER2 CAN READ ADMIN'S FILE
+================================================================================
+
+What to type:
+-------------
+user2$ cat testfile.txt
+
+Expected Output:
+----------------
+This is my test file
+Now it works
+user2$ _
+
+✓ User2 can read admin's file!
+
+================================================================================
+TEST 28: EXIT QEMU
+================================================================================
+
+What to type:
+-------------
+Press: Ctrl+A
+Then press: X
+
+Expected Output:
+----------------
+(QEMU exits, returns to host terminal)
+
+✓ Successfully exited!
+
+================================================================================
+SUMMARY OF EXPECTED BEHAVIOR
+================================================================================
+
+✓ Login screen appears at boot
+✓ Invalid credentials rejected
+✓ Valid credentials accepted
+✓ whoami shows correct user and UID
+✓ Files can be created
+✓ ls shows permissions (rwxa) and owner UID
+✓ chmod changes permissions
+✓ Read-only files block writes with error message
+✓ Write permission can be restored
+✓ Tab completion works
+✓ Tab shows multiple matches
+✓ logout exits shell and returns to login
+✓ user1 can only read files
+✓ user1 cannot write with error message
+✓ reboot restarts system
+✓ user2 can create and write files
+✓ user2 files show correct ownership
+✓ user2 cannot modify other users' files
+✓ user2 can read other users' files
+✓ Shell prompt shows current username
+
+ALL FEATURES WORKING WITH ERROR MESSAGES!
+
+================================================================================
+END OF EXPECTED OUTPUT
+================================================================================

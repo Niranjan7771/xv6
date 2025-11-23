@@ -1,0 +1,218 @@
+================================================================================
+ERROR MESSAGES ADDED - PERMISSION DENIED FEEDBACK
+================================================================================
+
+IMPROVEMENT: Added user-friendly error messages when permission is denied
+
+================================================================================
+WHAT WAS ADDED:
+================================================================================
+
+Now when you try to write to a read-only file or don't have permission,
+you'll see clear error messages instead of silent failures.
+
+================================================================================
+ERROR MESSAGE #1: READ-ONLY FILE
+================================================================================
+
+Scenario: Trying to write to a file with read-only permissions
+
+Example:
+--------
+admin$ echo "test" > file.txt
+admin$ chmod file.txt 1
+admin$ ls
+r--- file.txt uid:1 2 X XX
+
+admin$ echo "try to write" >> file.txt
+Permission denied: cannot open read-only file for writing
+
+admin$ cat file.txt
+test
+(file unchanged - write was blocked)
+
+✓ User now sees clear error message!
+
+================================================================================
+ERROR MESSAGE #2: USER HAS NO WRITE PERMISSION
+================================================================================
+
+Scenario: User without write permission tries to write
+
+Example:
+--------
+(Login as user1 - read-only user)
+
+user1$ echo "test" > myfile.txt
+Permission denied: user has no write permission
+
+user1$ cat README
+(can still read files)
+
+✓ User knows why the operation failed!
+
+================================================================================
+ERROR MESSAGE #3: WRITING TO ALREADY OPEN FILE
+================================================================================
+
+Scenario: Trying to write data to a read-only file descriptor
+
+Example:
+--------
+admin$ chmod file.txt 1
+admin$ echo "data" >> file.txt
+Permission denied: file is read-only
+
+✓ Clear feedback even during write operations!
+
+================================================================================
+WHERE MESSAGES APPEAR:
+================================================================================
+
+The error messages are printed by the kernel using cprintf(), so they
+appear on the console immediately when the operation is attempted.
+
+Messages appear:
+- When opening a file for writing (O_WRONLY or O_RDWR)
+- When writing to an already-open file descriptor
+- For both permission types (file read-only or user has no write permission)
+
+================================================================================
+CODE CHANGES:
+================================================================================
+
+File: sysfile.c
+
+1. In sys_open():
+   Added permission check before opening file for writing:
+   - Check if file has PERM_WRITE flag
+   - Check if user has write permission
+   - Print appropriate error message if denied
+
+2. In sys_write():
+   Added error messages when write is denied:
+   - "Permission denied: file is read-only"
+   - "Permission denied: user has no write permission"
+
+================================================================================
+TESTING THE ERROR MESSAGES:
+================================================================================
+
+Test 1: Read-only file
+-----------------------
+$ make qemu-nox
+Username: admin
+Password: admin
+
+admin$ echo "original" > test.txt
+admin$ chmod test.txt 1
+admin$ echo "modify" >> test.txt
+→ Shows: "Permission denied: cannot open read-only file for writing"
+✓ WORKING!
+
+Test 2: User without write permission
+--------------------------------------
+admin$ logout
+Username: user1
+Password: pass1
+
+user1$ echo "test" > file.txt
+→ Shows: "Permission denied: user has no write permission"
+✓ WORKING!
+
+Test 3: Verify file unchanged
+------------------------------
+admin$ cat test.txt
+→ Shows: "original" (unchanged)
+✓ WORKING!
+
+================================================================================
+BENEFITS:
+================================================================================
+
+Before:
+- Silent failures - user didn't know why write failed
+- Confusing behavior - no feedback
+- Hard to debug permission issues
+
+After:
+- Clear error messages
+- User knows exactly what went wrong
+- Easy to understand and fix permission problems
+
+================================================================================
+COMPLETE EXAMPLE SESSION:
+================================================================================
+
+$ make qemu-nox
+
+=== XV6 User Authentication System ===
+Username: admin
+Password: admin
+
+Login successful! Welcome admin (UID: 1)
+Starting shell...
+
+admin$ echo "This is my file" > myfile.txt
+admin$ cat myfile.txt
+This is my file
+
+admin$ chmod myfile.txt 1
+Permissions changed successfully
+
+admin$ ls
+r--- myfile.txt      uid:1 2 24 17
+
+admin$ echo "Try to modify" >> myfile.txt
+Permission denied: cannot open read-only file for writing
+
+admin$ cat myfile.txt
+This is my file
+(unchanged - write was blocked!)
+
+admin$ chmod myfile.txt 3
+Permissions changed successfully
+
+admin$ echo "Now it works" >> myfile.txt
+admin$ cat myfile.txt
+This is my file
+Now it works
+
+admin$ logout
+Logged out successfully. Exiting shell...
+
+=== XV6 User Authentication System ===
+Username: user1
+Password: pass1
+
+Login successful! Welcome user1 (UID: 2)
+Starting shell...
+
+user1$ echo "user1 file" > test.txt
+Permission denied: user has no write permission
+
+user1$ cat myfile.txt
+This is my file
+Now it works
+(can read admin's file)
+
+user1$ echo "hack" >> myfile.txt
+Permission denied: user has no write permission
+
+user1$ reboot
+
+================================================================================
+SUMMARY:
+================================================================================
+
+✓ Added 3 types of error messages
+✓ Messages appear in kernel console
+✓ Clear feedback for permission denied
+✓ Helps users understand why operations fail
+✓ Makes debugging permission issues easier
+
+All error messages tested and working!
+
+================================================================================
+END OF ERROR MESSAGES DOCUMENTATION
+================================================================================

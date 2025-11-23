@@ -1,0 +1,417 @@
+================================================================================
+XV6 USER AUTHENTICATION AND FILE PERMISSIONS IMPLEMENTATION
+================================================================================
+
+PROJECT OVERVIEW:
+This document details the implementation of user authentication, file permissions,
+reboot command, and tab completion features in XV6 operating system.
+
+================================================================================
+FEATURES IMPLEMENTED:
+================================================================================
+
+1. USER AUTHENTICATION SYSTEM
+   - Login/logout functionality
+   - Three default users with different permission levels
+   - Session management per process
+
+2. FILE PERMISSIONS
+   - Per-file owner tracking (UID)
+   - Permission flags: Read, Write, Execute, Admin
+   - Permission checking on file operations
+   - chmod command for changing permissions (admin only)
+
+3. REBOOT COMMAND
+   - System reboot functionality
+   - Allows switching users without manual restart
+
+4. TAB COMPLETION
+   - Auto-complete file names in shell
+   - Shows multiple matches when ambiguous
+   - Completes single match automatically
+
+5. ADDITIONAL ENHANCEMENTS
+   - whoami command to show current user
+   - Enhanced ls command showing permissions and owner
+   - User-specific shell prompt
+   - Login screen at boot
+
+================================================================================
+DEFAULT USERS:
+================================================================================
+
+Username: admin
+Password: admin
+UID: 1
+Permissions: Read, Write, Execute, Admin (full access)
+Description: Administrator account with all privileges
+
+Username: user1
+Password: pass1
+UID: 2
+Permissions: Read, Execute only
+Description: Read-only user, cannot write to files
+
+Username: user2
+Password: pass2
+UID: 3
+Permissions: Read, Write, Execute
+Description: Regular user with read/write access
+
+================================================================================
+FILES MODIFIED:
+================================================================================
+
+1. HEADER FILES:
+   
+   a) user_auth.h (NEW)
+      - Defines user structure
+      - Permission flags (PERM_READ, PERM_WRITE, PERM_EXEC, PERM_ADMIN)
+      - User database constants
+      WHY: Central location for authentication-related definitions
+   
+   b) stat.h
+      - Added uid field to struct stat
+      - Added permissions field to struct stat
+      WHY: Expose file ownership and permissions to user programs
+   
+   c) file.h
+      - Added uid field to struct inode
+      - Added permissions field to struct inode
+      WHY: Store ownership and permissions in memory for each file
+   
+   d) fs.h
+      - Added uid field to struct dinode (on-disk inode)
+      - Added permissions field to struct dinode
+      WHY: Persist ownership and permissions to disk
+   
+   e) proc.h
+      - Added uid field to struct proc
+      - Added permissions field to struct proc
+      WHY: Track which user owns each process
+   
+   f) syscall.h
+      - Added SYS_login (22)
+      - Added SYS_logout (23)
+      - Added SYS_getuid (24)
+      - Added SYS_chmod (25)
+      - Added SYS_reboot (26)
+      WHY: Define system call numbers for new functionality
+   
+   g) user.h
+      - Added function declarations for new system calls
+      - Added getchar() and strncmp() declarations
+      WHY: Expose new system calls to user programs
+
+2. SYSTEM CALL IMPLEMENTATION:
+   
+   a) syscall.c
+      - Added extern declarations for new system calls
+      - Added new system calls to syscalls[] array
+      WHY: Register new system calls with the kernel
+   
+   b) usys.S
+      - Added SYSCALL macros for login, logout, getuid, chmod, reboot
+      WHY: Generate assembly stubs for system call entry
+   
+   c) sysproc.c
+      - Implemented init_users() - initializes default user database
+      - Implemented sys_login() - authenticates user credentials
+      - Implemented sys_logout() - clears user session
+      - Implemented sys_getuid() - returns current user ID
+      - Implemented sys_chmod() - changes file permissions (admin only)
+      - Implemented sys_reboot() - reboots system via keyboard controller
+      WHY: Core authentication and permission management logic
+
+3. FILE SYSTEM:
+   
+   a) fs.c
+      - Modified iupdate() to save uid and permissions to disk
+      - Modified ilock() to load uid and permissions from disk
+      - Modified stati() to copy uid and permissions to stat structure
+      WHY: Persist and retrieve ownership/permission data
+   
+   b) sysfile.c
+      - Modified create() to set file owner (uid) and default permissions
+      - Modified sys_write() to check write permissions before allowing write
+      - Added user_auth.h include
+      WHY: Enforce permissions on file operations
+
+4. PROCESS MANAGEMENT:
+   
+   a) proc.c
+      - Modified allocproc() to initialize uid=0, permissions=0
+      - Modified fork() to inherit uid and permissions from parent
+      WHY: Maintain user context across process lifecycle
+
+5. USER PROGRAMS:
+   
+   a) init.c
+      - Completely rewritten to show login prompt before shell
+      - Displays available users and credentials
+      - Loops login until successful
+      - Calls logout when shell exits
+      WHY: Enforce authentication at system startup
+   
+   b) sh.c (shell)
+      - Added tab_complete() function for filename completion
+      - Modified getcmd() to support tab key and show username in prompt
+      - Added fs.h include for directory operations
+      WHY: Improve user experience with tab completion and context
+   
+   c) ls.c
+      - Modified to display permission flags (rwxa)
+      - Shows file owner UID
+      - Added user_auth.h include
+      WHY: Make permissions visible to users
+   
+   d) login.c (NEW)
+      - Standalone login program
+      - Supports command-line or interactive login
+      WHY: Allow manual login if needed
+   
+   e) logout.c (NEW)
+      - Clears current user session
+      WHY: Allow user to logout without rebooting
+   
+   f) whoami.c (NEW)
+      - Displays current logged-in user
+      WHY: Show user context information
+   
+   g) chmod.c (NEW)
+      - Changes file permissions (admin only)
+      - Simple numeric permission format (1=read, 2=write, 3=both)
+      WHY: Allow administrators to manage file permissions
+   
+   h) reboot.c (NEW)
+      - Triggers system reboot
+      WHY: Provide clean way to switch users
+
+6. UTILITY LIBRARIES:
+   
+   a) ulib.c
+      - Added getchar() function for single character input
+      WHY: Support tab completion in shell
+   
+   b) string.c
+      - Added strcmp() function for string comparison
+      WHY: Support credential checking in authentication
+
+7. BUILD SYSTEM:
+   
+   a) Makefile
+      - Added _login, _logout, _whoami, _chmod, _reboot to UPROGS
+      WHY: Build and include new programs in file system image
+
+================================================================================
+HOW IT WORKS:
+================================================================================
+
+1. BOOT SEQUENCE:
+   - Kernel starts and runs init process
+   - init.c displays login screen with available users
+   - User enters username and password
+   - init calls login() system call
+   - If successful, init forks and execs shell
+   - Shell inherits user credentials from init
+   - When shell exits, init calls logout() and shows login again
+
+2. AUTHENTICATION FLOW:
+   - sys_login() checks username/password against user database
+   - If match found, sets current process uid and permissions
+   - Child processes inherit uid/permissions via fork()
+   - sys_logout() clears uid and permissions (sets to 0)
+
+3. FILE PERMISSION ENFORCEMENT:
+   - When file is created, owner uid is set to current process uid
+   - Default permissions are read+write
+   - On write operations, sys_write() checks:
+     * If file has no owner (uid=0), allow write
+     * If current user is file owner, allow write
+     * If file has PERM_WRITE flag, allow write
+     * Otherwise, deny write (return -1)
+   - Admin users can use chmod to change any file's permissions
+
+4. TAB COMPLETION:
+   - User presses TAB in shell
+   - tab_complete() extracts partial filename
+   - Searches current directory for matching files
+   - If one match: completes filename automatically
+   - If multiple matches: displays all matches
+   - If no matches: does nothing
+
+5. REBOOT MECHANISM:
+   - sys_reboot() sends 0xFE to keyboard controller port 0x64
+   - This triggers a CPU reset (triple fault method)
+   - System reboots and returns to login screen
+
+================================================================================
+PERMISSION FLAGS:
+================================================================================
+
+PERM_READ  (0x01) - Can read file contents
+PERM_WRITE (0x02) - Can write to file
+PERM_EXEC  (0x04) - Can execute file (not enforced in this implementation)
+PERM_ADMIN (0x08) - Has administrative privileges
+
+Displayed in ls as: rwxa
+Example: "rw--" means read+write, no execute, no admin
+
+================================================================================
+TESTING THE IMPLEMENTATION:
+================================================================================
+
+1. TEST USER AUTHENTICATION:
+   - Boot XV6
+   - Try logging in with wrong password (should fail)
+   - Login as user1 (user1/pass1)
+   - Run: whoami (should show "user1 (uid: 2)")
+   - Run: logout
+   - Login as admin (admin/admin)
+   - Run: whoami (should show "admin (uid: 1)")
+
+2. TEST FILE PERMISSIONS:
+   - Login as user2 (user2/pass2)
+   - Create a file: echo hello > testfile
+   - Run: ls (should show "rw--" permissions, uid:3)
+   - Run: cat testfile (should work - read permission)
+   - Login as user1 (use reboot command)
+   - Try: echo world > testfile (should fail - no write permission)
+   - Run: cat testfile (should work - read permission)
+
+3. TEST CHMOD (ADMIN ONLY):
+   - Login as admin
+   - Create file: echo test > adminfile
+   - Run: chmod adminfile 1 (set to read-only)
+   - Run: ls (should show "r---" permissions)
+   - Try: echo more >> adminfile (should fail even for admin)
+   - Run: chmod adminfile 3 (set to read+write)
+   - Run: echo more >> adminfile (should work now)
+
+4. TEST TAB COMPLETION:
+   - In shell, type: cat RE<TAB>
+   - Should complete to: cat README
+   - Type: ls _<TAB>
+   - Should show all programs starting with underscore
+
+5. TEST REBOOT:
+   - Login as any user
+   - Run: reboot
+   - System should restart and show login screen
+
+================================================================================
+DESIGN DECISIONS:
+================================================================================
+
+1. IN-MEMORY USER DATABASE:
+   - Users are stored in static array in sysproc.c
+   - Simple and sufficient for demonstration
+   - Production system would use persistent storage
+   - Easy to add more users by modifying init_users()
+
+2. SIMPLE PERMISSION MODEL:
+   - Only owner and permission flags (no groups)
+   - Simpler than full Unix permissions (owner/group/other)
+   - Adequate for educational purposes
+   - Easy to understand and implement
+
+3. PERMISSION CHECKING LOCATION:
+   - Write permission checked in sys_write()
+   - Could also check in filewrite() for more coverage
+   - Current approach is simpler and catches most cases
+
+4. TAB COMPLETION LIMITATIONS:
+   - Only completes files in current directory
+   - Doesn't handle paths with directories
+   - Shows max 20 matches to avoid overflow
+   - Good enough for basic usage
+
+5. REBOOT METHOD:
+   - Uses keyboard controller reset (port 0x64)
+   - Simple and reliable on x86
+   - Alternative: ACPI reset (more complex)
+
+================================================================================
+POTENTIAL IMPROVEMENTS:
+================================================================================
+
+1. PERSISTENT USER DATABASE:
+   - Store users in a file on disk
+   - Add user management commands (adduser, deluser, passwd)
+   - Support more than 10 users
+
+2. ENHANCED PERMISSIONS:
+   - Add group permissions (owner/group/other like Unix)
+   - Implement execute permission checking
+   - Add special permissions (setuid, sticky bit)
+
+3. BETTER TAB COMPLETION:
+   - Support path completion (directories)
+   - Complete command names from PATH
+   - Handle spaces in filenames
+
+4. SECURITY ENHANCEMENTS:
+   - Hash passwords instead of storing plaintext
+   - Add password aging and complexity requirements
+   - Implement sudo for temporary privilege elevation
+   - Add audit logging for security events
+
+5. USER EXPERIENCE:
+   - Add command history (up/down arrows)
+   - Support backspace in tab completion
+   - Add color coding for different file types
+   - Implement file access control lists (ACLs)
+
+================================================================================
+KNOWN LIMITATIONS:
+================================================================================
+
+1. Passwords stored in plaintext (not secure)
+2. No password change functionality
+3. Execute permission not enforced
+4. No group permissions
+5. Tab completion only works in current directory
+6. Maximum 10 users hardcoded
+7. No persistent session across reboots
+8. Permission checking only on write, not read
+9. No file encryption or secure deletion
+10. Reboot is abrupt (no graceful shutdown)
+
+================================================================================
+COMPILATION AND RUNNING:
+================================================================================
+
+1. COMPILE:
+   make clean
+   make
+
+2. RUN IN QEMU:
+   make qemu
+
+3. RUN IN QEMU-NOX (no graphics):
+   make qemu-nox
+
+4. FIRST TIME USAGE:
+   - System boots to login screen
+   - Login with: admin/admin
+   - Try commands: whoami, ls, chmod, reboot
+   - Create files and test permissions
+   - Logout and login as different users
+
+================================================================================
+CONCLUSION:
+================================================================================
+
+This implementation adds essential multi-user capabilities to XV6:
+- User authentication ensures only authorized users can access the system
+- File permissions protect data from unauthorized modification
+- Tab completion improves command-line usability
+- Reboot command provides convenient user switching
+
+The implementation is educational and demonstrates core OS security concepts
+while maintaining XV6's simplicity and readability. All changes are well-
+documented and follow XV6's coding style and architecture.
+
+================================================================================
+END OF DOCUMENT
+================================================================================

@@ -160,6 +160,7 @@ UPROGS=\
 	_kill\
 	_ln\
 	_ls\
+	_mlfqtest\
 	_mkdir\
 	_rm\
 	_sh\

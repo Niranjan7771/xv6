@@ -14,6 +14,14 @@
 #define BACK  5
 
 #define MAXARGS 10
+#define MAX_HISTORY 32
+
+static char history_buf[MAX_HISTORY][100];
+static int history_count;
+static int history_next;
+
+static void history_add(char *cmd);
+static void history_print(void);
 
 struct cmd {
   int type;
@@ -185,6 +193,39 @@ tab_complete(char *buf, int pos)
   }
 }
 
+static void
+history_add(char *cmd)
+{
+  char clean[sizeof(history_buf[0])];
+  int i = 0;
+  while(cmd[i] && cmd[i] != '\n' && cmd[i] != '\r' && i < sizeof(clean) - 1){
+    clean[i] = cmd[i];
+    i++;
+  }
+  clean[i] = 0;
+  if(i == 0)
+    return;
+  strcpy(history_buf[history_next], clean);
+  history_next = (history_next + 1) % MAX_HISTORY;
+  if(history_count < MAX_HISTORY)
+    history_count++;
+}
+
+static void
+history_print(void)
+{
+  int i;
+  if(history_count == 0){
+    printf(1, "history: empty\n");
+    return;
+  }
+  int start = (history_next - history_count + MAX_HISTORY) % MAX_HISTORY;
+  for(i = 0; i < history_count; i++){
+    int idx = (start + i) % MAX_HISTORY;
+    printf(1, "%d %s\n", i + 1, history_buf[idx]);
+  }
+}
+
 int
 getcmd(char *buf, int nbuf)
 {
@@ -241,11 +282,18 @@ main(void)
 
   // Read and run input commands.
   while(getcmd(buf, sizeof(buf)) >= 0){
+    history_add(buf);
     if(buf[0] == 'c' && buf[1] == 'd' && buf[2] == ' '){
       // Chdir must be called by the parent, not the child.
       buf[strlen(buf)-1] = 0;  // chop \n
       if(chdir(buf+3) < 0)
         printf(2, "cannot cd %s\n", buf+3);
+      continue;
+    }
+    if(buf[0] == 'h' && buf[1] == 'i' && buf[2] == 's' && buf[3] == 't' &&
+       buf[4] == 'o' && buf[5] == 'r' && buf[6] == 'y' &&
+       (buf[7] == '\n' || buf[7] == '\r' || buf[7] == ' ' || buf[7] == 0)){
+      history_print();
       continue;
     }
     // Check for logout command - exit shell to return to login

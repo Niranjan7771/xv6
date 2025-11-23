@@ -41,3 +41,11 @@ the Multilevel Feedback Queue scheduler and related build fixes.
 - New user program that emits the ANSI escape sequence `ESC[2J ESC[H]` to clear
   the console display and place the cursor in the upper-left corner, mirroring
   the UX of Ubuntu's `clear` command.
+
+## xv6-source/mlfqtest.c
+- User-space workload generator that now launches a heavier mix of CPU-bound,
+  sleep-heavy, mixed, and interactive workers, each running dozens of rounds
+  with varied spin/sleep patterns.
+- The richer log stream makes it easier to confirm that CPU hogs get demoted,
+  interactive workers stay responsive, and periodic boosts eventually cycle
+  everyone back to the top queue.
